@@ -71,7 +71,6 @@ filtered_instances=['pytest-dev__pytest-5227',
  'sympy__sympy-21055',
  'django__django-15213',
  'django__django-15902',
- 
  'tobymao__sqlglot-4477',
  'pyodide__pyodide-1215',
  'django__django-17811',
@@ -103,35 +102,34 @@ def normalized_dcg(pred_target: Tensor, ideal_target: Tensor, k: Optional[int] =
 
 
 def recall_at_k(pred_target: Tensor, ideal_target: Tensor, k: Optional[int] = None) -> Tensor:
-    pred_target = pred_target[:, :k]  # 只考虑前 k 个预测结果
-    relevant = (pred_target == 1).sum(dim=-1)  # 计算预测中相关文档的个数
-    total_relevant = (ideal_target == 1).sum(dim=-1)  # 计算所有相关文档的个数
-    recall = div_no_nan(relevant, total_relevant, na_value=0.)  # 计算 Recall@k
+    pred_target = pred_target[:, :k]  
+    relevant = (pred_target == 1).sum(dim=-1)  
+    total_relevant = (ideal_target == 1).sum(dim=-1) 
+    recall = div_no_nan(relevant, total_relevant, na_value=0.) 
     return recall.mean(0)
 
 
 def acc_at_k(pred_target: Tensor, ideal_target: Tensor, k: Optional[int] = None) -> Tensor:
-    print(pred_target)
-    pred_target = pred_target[:, :k]  # 只考虑前 k 个预测结果
+    pred_target = pred_target[:, :k] 
     ideal_target = ideal_target[:, :k]
     
-    relevant = (pred_target == 1).sum(dim=-1)  # 计算预测中相关文档的个数
-    total_relevant = (ideal_target == 1).sum(dim=-1)  # 计算所有相关文档的个数
+    relevant = (pred_target == 1).sum(dim=-1)  
+    total_relevant = (ideal_target == 1).sum(dim=-1) 
 
     comparison = relevant == total_relevant
     return comparison.sum()/relevant.shape[0]
 
 
 def precision_at_k(pred_target: Tensor, ideal_target: Tensor, k: Optional[int] = None) -> Tensor:
-    pred_target = pred_target[:, :k]  # 只考虑前 k 个预测结果
-    relevant = (pred_target == 1).sum(dim=-1)  # 计算预测中相关文档的个数
-    precision = relevant / k  # 计算 Precision@k
+    pred_target = pred_target[:, :k]  
+    relevant = (pred_target == 1).sum(dim=-1)  
+    precision = relevant / k  
     return precision.mean(0)
 
 
 def average_precision_at_k(pred_target: Tensor, ideal_target: Tensor, k: Optional[int] = None) -> Tensor:
     batch_size, k_val = pred_target.shape
-    pred_target = pred_target[:, :k]  # 只考虑前 k 个预测结果
+    pred_target = pred_target[:, :k]  
     ideal_target = ideal_target[:, :k]
     
     precisions = []
@@ -139,9 +137,9 @@ def average_precision_at_k(pred_target: Tensor, ideal_target: Tensor, k: Optiona
         ap = 0.0
         relevant_count = 0
         for j in range(k):
-            if pred_target[i, j] == 1:  # 如果是相关文档
+            if pred_target[i, j] == 1:  
                 relevant_count += 1
-                ap += relevant_count / (j + 1)  # 计算 Precision@j
+                ap += relevant_count / (j + 1)  
         # if relevant_count > 0:
         ap = ap/k
         precisions.append(ap)
@@ -483,7 +481,7 @@ def cal_metrics_w_dataset(loc_file, key,
 
 
 def evaluate_results(model='coderankembed_loc', output_dir="outputs",reranker_output_dir=None, dataset_dir="datasets",
-                     dataset='czlll/SWE-bench_Lite', split='test',
+                     dataset='czlll/SWE-bench_Lite', split='test', output_file=None,
                      selected_list=None,
                      metrics=['acc'], 
                      k_values_list=None):
@@ -508,8 +506,11 @@ def evaluate_results(model='coderankembed_loc', output_dir="outputs",reranker_ou
     else:
         qrels = None
 
-    prefx = f'{output_dir}/model={model}_dataset={ds_name}_split={split}_level=function_evalmode=default'
-    loc_file = Path(f'{prefx}_results.json')
+    if output_file:
+        loc_file = Path(output_file)
+    else:
+        prefx = f'{output_dir}/model={model}_dataset={ds_name}_split={split}_level=function_evalmode=default'
+        loc_file = Path(f'{prefx}_results.json')
     
     if reranker_output_dir:
         reranker_results = {}

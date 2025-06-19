@@ -3,15 +3,15 @@
 set -e
 
 export REPO_DIR="$(pwd)"
-export DATASET_DIR="${REPO_DIR}/datasets"
 export OUTPUT_DIR="${REPO_DIR}/outputs"
 export EVAL_DIR="${REPO_DIR}/eval_results"
 
-retriever=${1:-"swerankembed_ft"}
+retriever=${1:-"SweRankEmbed-Small"}
 dataset=${2:-"swe-bench-lite"}
-split=${3:-"test"}
-level=${4:-"function"}
-eval_mode=${5:-"default"}
+DATASET_DIR=${3:-"./datasets/"}
+split=${4:-"test"}
+level=${5:-"function"}
+eval_mode=${6:-"default"} 
 
 # Default reranking parameters
 TOP_K=100
@@ -45,3 +45,15 @@ python src/rerank.py \
     --api_key ${OPENAI_API_KEY} # API key for OpenAI model call
 
 echo "Reranking completed!"
+
+# Reranker output configs
+DATA_TYPE="${retriever}_${RERANKER_TAG}"
+RERANKER_OUTPUT_DIR="${OUTPUT_DIR}/${DATA_TYPE}"
+
+echo "Running evaluation..."
+bash python src/refactored_eval_localization.py \
+        --model $RETRIEVER_MODEL_NAME \
+        --output_dir $OUTPUT_DIR \
+        --reranker_output_dir $RERANKER_OUTPUT_DIR \
+        --dataset_dir $DATASET_DIR \
+        --dataset $dataset

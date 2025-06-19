@@ -3,15 +3,16 @@
 set -e
 
 export REPO_DIR="$(pwd)"
-export DATASET_DIR="${REPO_DIR}/datasets"
 export OUTPUT_DIR="${REPO_DIR}/outputs"
 export EVAL_DIR="${REPO_DIR}/eval_results"
 
-retriever=${1:-"swerankembed_ft"}
-dataset=${2:-"swe-bench-lite"}
-split=${3:-"test"}
-level=${4:-"function"}
-eval_mode=${5:-"default"}
+retriever=${1:-"SweRankEmbed-Large"}
+reranker=${2:-"SweRankLLM-Large"}
+dataset=${3:-"swe-bench-lite"}
+DATASET_DIR=${4:-"./datasets/"}
+split=${5:-"test"}
+level=${6:-"function"}
+eval_mode=${7:-"default"}
 
 # Default reranking parameters
 TOP_K=100
@@ -21,7 +22,7 @@ STEP_SIZE=5
 export NCCL_P2P_DISABLE=1
 export VLLM_WORKER_MULTIPROC_METHOD="spawn"
 
-### RETRIEVER OUTPUT PATTERN: model=CodeRankEmbed_dataset=swe-bench-lite_split=test_level=function_evalmode=default_results.json
+### RETRIEVER OUTPUT PATTERN: model=SweRankEmbed-Large_dataset=swe-bench-lite_split=test_level=function_evalmode=default_results.json
 
 # Model paths
 CodeRankLLM="nomic-ai/CodeRankLLM"
@@ -51,3 +52,15 @@ python src/rerank.py \
     --use_parallel_reranking
 
 echo "Reranking completed!"
+
+# Reranker output configs
+DATA_TYPE="${retriever}_${RERANKER_TAG}"
+RERANKER_OUTPUT_DIR="${OUTPUT_DIR}/${DATA_TYPE}"
+
+echo "Running evaluation..."
+bash python src/refactored_eval_localization.py \
+        --model $RETRIEVER_MODEL_NAME \
+        --output_dir $OUTPUT_DIR \
+        --reranker_output_dir $RERANKER_OUTPUT_DIR \
+        --dataset_dir $DATASET_DIR \
+        --dataset $dataset

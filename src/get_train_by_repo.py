@@ -4,7 +4,7 @@ from get_repo_structure.get_patch_info import *
 from datasets import load_dataset, Dataset
 import srsly
 import os
-import fire 
+import argparse
 from tqdm import tqdm
 
 
@@ -59,18 +59,15 @@ def process_instance(instance):
     
     return instances
 
-def main(data_path = 'SWE_PRS_FT_DATASET_2025012115_42.jsonl', out_path = 'prs_with_code.jsonl', github_token=None):
-    assert github_token, "Github token is not passed for api access."
-
-    data_path = ""
-    dataset = [d for d in tqdm(srsly.read_jsonl(data_path))]
+def main(args):
+    dataset = [d for d in tqdm(srsly.read_jsonl(args.data_path))]
     
     with multiprocessing.Pool(processes=int(os.cpu_count()/2)) as pool:
         instances_with_codebase = list(tqdm(pool.imap_unordered(load_structure, dataset), total=len(dataset)))
     
     instances_with_codebase = [inst for inst in instances_with_codebase if inst is not None]
     
-    srsly.write_jsonl(out_path, instances_with_codebase)  
+    srsly.write_jsonl(args.out_path, instances_with_codebase)  
 
     with multiprocessing.Pool(processes=int(os.cpu_count()/2)) as pool:
         results = list(tqdm(pool.imap_unordered(process_instance, instances_with_codebase), total=len(instances_with_codebase)))
@@ -78,7 +75,13 @@ def main(data_path = 'SWE_PRS_FT_DATASET_2025012115_42.jsonl', out_path = 'prs_w
     # Flatten the list of lists
     ds = [item for sublist in results for item in sublist]
     ds = Dataset.from_list(ds)
-    ds.push_to_hub("cornstack/repo_contrastive_premined", private=True)
+    ds.to_json(args.save_file_name)
 
 if __name__ == "__main__":
-    fire.Fire(main)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data_path', type=str, required=True)
+    parser.add_argument('--out_path', type=str, default="prs_with_code.jsonl")
+    parser.add_argument('--save_file_name', type=str, default="repo_contrastive_premined.jsonl")
+
+    args = parser.parse_args()
+    main(args)

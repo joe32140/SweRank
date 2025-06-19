@@ -2,7 +2,6 @@ from datasets import load_dataset, Dataset, concatenate_datasets
 from beir.retrieval.search.dense import DenseRetrievalExactSearch as DRES
 from beir.retrieval.evaluation import EvaluateRetrieval
 import json
-import wandb
 from beir.retrieval import models
 from sentence_transformers import SentenceTransformer
 import torch
@@ -75,19 +74,13 @@ class RetrieverInference:
         with open(self.file_name, 'a') as f:
             f.write(json.dumps(inst) + '\n')
 
-def main(start_idx, end_idx, num_workers_per_gpu = 1, micro_batch_size = 100, overwrite = False):
-    wandb.init(
-        project="code",
-        entity="ragllm"
-    )
+def main(data_path, num_workers_per_gpu = 1, micro_batch_size = 100, overwrite = False, save_file_name="repo_contrastive_mined.jsonl"):
 
     num_gpus = torch.cuda.device_count()
-    
-    ds = [load_dataset("cornstack/repo_contrastive_premined", split = 'train', streaming= True)] if start_idx == 0 else []
-    ds = ds + [load_dataset(f"cornstack-dev/repo_contrastive_premined_{i}", split = 'train', streaming= True) for i in range(max(1, start_idx), end_idx + 1)]
-    ds = concatenate_datasets(ds)
 
-    data_file_name = f"repo_contrastive_mined_{start_idx}_{end_idx}.jsonl"
+    ds = load_dataset('json', data_files=data_path, split='train', streaming=True)
+
+    data_file_name = save_file_name
     
     if overwrite and os.path.exists(data_file_name):
         os.remove(data_file_name)
@@ -128,7 +121,6 @@ def main(start_idx, end_idx, num_workers_per_gpu = 1, micro_batch_size = 100, ov
                 futures.append(actors[actor_id].process_item.remote(batch))
             
             results = ray.get(futures)
-            wandb.log({"num_processed": num_processed})
             batch_ds = []
     
     if batch_ds:
@@ -140,9 +132,5 @@ def main(start_idx, end_idx, num_workers_per_gpu = 1, micro_batch_size = 100, ov
             futures.append(actors[actor_id].process_item.remote(batch))
         
         results = ray.get(futures)
-        wandb.log({"num_processed": num_processed})
-    
-    wandb.finish()
-
 if __name__ == "__main__":
     fire.Fire(main)
