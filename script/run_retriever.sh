@@ -14,6 +14,8 @@ RESULTS_FILE=${OUTPUT_DIR}/model=${MODEL_TAG}_dataset=${DATASET}_split=${SPLIT}_
 
 echo "Running $MODEL_NAME on TAG: $MODEL_TAG"
 
+export PYTHONPATH="$(pwd)/src"
+
 python src/eval_beir_sbert_canonical.py \
     --dataset_dir $DATASET_DIR \
     --dataset $DATASET \
@@ -21,7 +23,7 @@ python src/eval_beir_sbert_canonical.py \
     --batch_size $BATCH_SIZE \
     --output_file $OUTPUT_FILE \
     --results_file $RESULTS_FILE \
-    --eval_mode ${EVAL_MODE} --split ${SPLIT} --level ${LEVEL}
+    --eval_mode ${EVAL_MODE} --split ${SPLIT} --add_prefix --level ${LEVEL}
 
 echo "Retriever results saved to $RESULTS_FILE"
 

@@ -189,7 +189,7 @@ if __name__ == "__main__":
                         help="Specify the filepath if you want to save the retrieval (evaluation) results.")
     parser.add_argument("--results_file", type=str, default="results.json",
                         help="Specify the filepath if you want to save the retrieval results.")
-    parser.add_argument('--add_prefix', default= False, type = bool)
+    parser.add_argument('--add_prefix', action='store_true', help="Add prefix to the queries")
     args = parser.parse_args()
 
     main()

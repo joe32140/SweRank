@@ -7,8 +7,8 @@ from time import strftime
 from time import gmtime
 import logging
 from beir.datasets.data_loader import GenericDataLoader
-from src.reranker.utils.result import Result, ResultsLoader
-from src.reranker.utils.llm_util import evaluate_results, get_results_to_eval, save_rerank_results, rerank_beir_outputs_llm, load_reranker, save_histories
+from reranker.utils.result import Result, ResultsLoader
+from reranker.utils.llm_util import evaluate_results, get_results_to_eval, save_rerank_results, rerank_beir_outputs_llm, load_reranker, save_histories
 
 def get_mrr_at_k(eval_dir, dataset_name, data_type, qrels_path, results):
     """
