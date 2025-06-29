@@ -27,7 +27,7 @@ def process_instance(instance):
     
     try:
         data = find_py_or_non_dict_with_path(structure['structure'], cond=instance["instance_id"].startswith('pytest-dev__'))
-        patch_info = parse_patch_full(instance['patch'], structure)
+        patch_info = parse_patch_full(instance['model_patch'], structure)
     except Exception as e:
         print("Error: ", str(e), " while processing instance: ", instance["instance_id"])
         return []

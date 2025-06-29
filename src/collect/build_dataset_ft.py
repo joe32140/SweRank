@@ -32,7 +32,7 @@ def main(instances_path: str, output_dir: str, seed: int):
     # Create fine tuning dataset
     with open(destination, "w") as f_out:
         for dataset_path in tqdm(
-            glob.glob(os.path.join(instances_path, "*-task-instances.jsonl.all"))
+            glob.glob(os.path.join(instances_path, "*-task-instances.jsonl"))
         ):
             total_repos += 1
             with open(dataset_path) as f:

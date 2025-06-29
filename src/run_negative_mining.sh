@@ -19,4 +19,5 @@ python repo_negative_mining.py \
 
 # Quality filtering (consistency + hard negatives filtering)
 python collect/filter_dataset.py \
-    --file_path ${mined_data_name} \
+    --file_path . \
+    --file_prefix "repo_contrastive_mined"

@@ -23,6 +23,8 @@ scripts/reddit/downloaded/*
 *.gz
 *.parquet
 test/
+__MACOSX
+datasets.zip
 
 # Dataset directories
 datasets/

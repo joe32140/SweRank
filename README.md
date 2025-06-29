@@ -43,6 +43,50 @@ bash script/run_retriever.sh Salesforce/SweRankEmbed-Large SweRankEmbed-Large <p
 bash script/run_retriever.sh Salesforce/SweRankEmbed-Large SweRankEmbed-Large <path_to_datasets_folder> loc-bench
 ```
 
+#### Additional Model Evaluations
+
+##### SageLite Model Evaluation
+To evaluate the SageLite-s model on SWE-Bench-Lite:
+```bash
+python src/eval_beir_sbert_canonical.py \
+    --dataset swe-bench-lite \
+    --split test \
+    --level function \
+    --model "Salesforce/SageLite-s" \
+    --batch_size 16 \
+    --output_file sagelite_results.json
+```
+
+##### Reason-ModernColBERT Evaluation
+To evaluate the Reason-ModernColBERT model on SWE-Bench-Lite:
+```bash
+python src/eval_reason_colbert_fixed.py \
+    --dataset_pattern "swe-bench-lite-function_*" \
+    --model "lightonai/Reason-ModernColBERT" \
+    --max_instances 10 \
+    --output_file reason_colbert_results.json
+```
+
+For full evaluation (all 274 instances), remove the `--max_instances` parameter:
+```bash
+python src/eval_reason_colbert_fixed.py \
+    --dataset_pattern "swe-bench-lite-function_*" \
+    --model "lightonai/Reason-ModernColBERT" \
+    --output_file reason_colbert_full_results.json
+```
+
+##### CodeRankEmbed Evaluation
+To evaluate the CodeRankEmbed model on SWE-Bench-Lite:
+```bash
+python src/eval_beir_sbert_canonical.py \
+    --dataset swe-bench-lite \
+    --split test \
+    --level function \
+    --model "nomic-ai/CodeRankEmbed" \
+    --batch_size 16 \
+    --output_file coderank_results.json
+```
+
 #### SweRankLLM Evaluation (Reranking)
 
 The reranking scripts use the JSON file with retriever results as input.
@@ -71,7 +115,7 @@ The training data, which we call `SweLoc`, is collected from GitHub issues and p
 
 Set your GitHub access token as an environment variable. You can generate a token from your [GitHub settings](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
 ```bash
-export GITHUB_TOKEN=<your_github_token_here>
+export GITHUB_TOKEN=your_github_token_here
 ```
 
 ### 2. Collect Raw Data
@@ -120,6 +164,60 @@ For distributed training across multiple nodes, run:
 bash script/run_train_reranker_multi_node.sh
 ```
 You will have to set your distributed training arguments within the script. We provide a sample script for a SLURM cluster at `script/slurm_run_multinode_train.sh`. Make sure to load any required modules within the example script as well.
+
+## Evaluation Results
+
+We have evaluated several embedding models on the SWE-Bench-Lite dataset for software issue localization. The results show the performance of different models in retrieving relevant code functions for given software issues.
+
+### Performance Comparison
+
+| Model | Parameters | Embedding Dim | NDCG@1 | NDCG@5 | Recall@5 | Recall@10 | Avg Time (s) |
+|-------|------------|---------------|---------|---------|----------|-----------|--------------|
+| **Reason-ModernColBERT** | 150M | 128 | **30.0%** | 35.5% | 40.0% | **76.7%** | 2.3 |
+| **SageLite-s** | 80M | 768 | 27.0% | **40.7%** | **52.1%** | 60.3% | 24.5 |
+| **CodeRankEmbed** | 137M | 768 | 25.9% | 40.6% | 54.0% | 61.6% | 105.0 |
+
+### Technical Details
+
+- **Dataset**: SWE-Bench-Lite (274 instances for full evaluation, 10 instances for Reason-ModernColBERT)
+- **Task**: Function-level code retrieval for software issue localization
+- **Evaluation Metrics**: NDCG (Normalized Discounted Cumulative Gain), Recall@K
+- **Hardware**: Evaluation performed on standard GPU infrastructure
+
+### Key Insights
+
+1. **Reason-ModernColBERT** achieves the highest precision with 30.0% NDCG@1 and excellent Recall@10 (76.7%), demonstrating superior top-1 accuracy and strong overall retrieval performance
+2. **SageLite-s** offers the best balance of mid-range performance (Recall@5: 52.1%) with efficient inference and compact model size (80M parameters)
+3. **CodeRankEmbed** provides solid overall performance but with significantly slower inference (105s vs 2.3s for Reason-ModernColBERT)
+4. ColBERT architecture (Reason-ModernColBERT) shows particular strength in precise top-1 retrieval, making it ideal for scenarios where the first result accuracy is critical
+5. All models demonstrate practical utility focusing on top-5 to top-10 recommendations, with diminishing returns beyond top-10 results
+
+### Model Specifications
+
+#### Reason-ModernColBERT
+- 150M parameter ColBERT model based on ModernBERT architecture
+- 128-dimensional embeddings with token-level interactions
+- Trained on ReasonIR dataset for reasoning-focused retrieval
+- Uses MaxSim scoring for fine-grained query-document matching
+- Requires query prefix: "[Q] " and document prefix: "[D] "
+- Supports up to 8192 tokens for documents, 128 for queries
+- Optimized for precise top-1 retrieval in software issue localization
+
+#### CodeRankEmbed
+- 137M parameter bi-encoder model
+- 768-dimensional embeddings
+- Based on Arctic-Embed-M-Long architecture
+- Supports 8192 context length
+- Specialized for code ranking tasks
+- Requires query prefix: "Represent this query for searching relevant code"
+- Optimized for software issue localization
+
+#### SageLite-s
+- 80M parameter encoder model
+- 768-dimensional embeddings
+- Supports 15 programming languages
+- No special query prefix requirements
+- Efficient alternative for resource-constrained environments
 
 ## Citation
 

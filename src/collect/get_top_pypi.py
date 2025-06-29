@@ -97,7 +97,12 @@ if __name__ == "__main__":
 
     # Start selenium driver to get top 5000 pypi page
     url_top_pypi = "https://hugovk.github.io/top-pypi-packages/"
-    driver = webdriver.Chrome()
+    from selenium.webdriver.chrome.options import Options
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    driver = webdriver.Chrome(options=chrome_options)
     driver.get(url_top_pypi)
     button = driver.find_element(By.CSS_SELECTOR, 'button[ng-click="show(15000)"]')
     button.click()

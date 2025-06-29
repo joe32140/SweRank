@@ -112,10 +112,16 @@ def main():
                 query_prefix = "Represent this query for searching relevant code"
             elif "SweRankEmbed-large".lower() in args.model.lower():
                 query_prefix = "Instruct: Given a github issue, identify the code that needs to be changed to fix the issue.\nQuery"
+            elif "CodeRankEmbed".lower() in args.model.lower():
+                query_prefix = "Represent this query for searching relevant code"
+            elif "SageLite".lower() in args.model.lower():
+                # SageLite models don't require specific query prefixes
+                query_prefix = ""
             else:
                 raise ValueError(f"Model {args.model} not supported, make sure to define the query prefix")
             
-            queries = {k : f'{query_prefix}: {v}' for k, v in queries.items()}
+            if query_prefix:
+                queries = {k : f'{query_prefix}: {v}' for k, v in queries.items()}
         logging.info(f"Instance #{ins_dir}: #{len(corpus)} corpus, #{len(queries)} queries")
             
         start_time = time()
@@ -183,7 +189,7 @@ if __name__ == "__main__":
                         help="Localization level to use for evaluation")
     parser.add_argument('--eval_mode', type = str, default = 'default')
     parser.add_argument("--model", type=str, default="Salesforce/SweRankEmbed-Small", help="Embedding model to use")
-    parser.add_argument("--batch_size", type=int, default=64, help="Batch size for retrieval")
+    parser.add_argument("--batch_size", type=int, default=16, help="Batch size for retrieval")
     parser.add_argument("--sequence_length", type=int, default=1024, help="Sequence length for retrieval")
     parser.add_argument("--output_file", type=str, default="outputs.json",
                         help="Specify the filepath if you want to save the retrieval (evaluation) results.")
