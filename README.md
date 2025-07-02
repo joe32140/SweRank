@@ -167,9 +167,35 @@ You will have to set your distributed training arguments within the script. We p
 
 ## Evaluation Results
 
-We have evaluated several embedding models on the SWE-Bench-Lite dataset for software issue localization. The results show the performance of different models in retrieving relevant code functions for given software issues.
+We have evaluated several embedding models on the SWE-Bench-Lite dataset for software issue localization across different granularity levels (file, module, function). The results demonstrate the performance of different models in retrieving relevant code components for given software issues.
 
-### Performance Comparison
+### Model Comparison - Accuracy@k Results
+
+#### FILE Level Accuracy@k
+| Model | Acc@1 | Acc@3 | Acc@5 | Acc@10 | Acc@20 | Count |
+|-------|-------|-------|-------|--------|--------|-------|
+| **SageLite-s** | **54.4%** | **70.4%** | **78.1%** | **84.3%** | **89.4%** | 274 |
+| **CodeRankEmbed** | 52.6% | 72.3% | 80.3% | 85.0% | 90.1% | 274 |
+| **finetuned-Reason-ModernColBERT** | 51.8% | 66.4% | 74.5% | 78.1% | 83.2% | 274 |
+| **Reason-ModernColBERT** | 41.6% | 62.0% | 69.3% | 77.7% | 82.8% | 274 |
+
+#### MODULE Level Accuracy@k
+| Model | Acc@1 | Acc@3 | Acc@5 | Acc@10 | Acc@20 | Count |
+|-------|-------|-------|-------|--------|--------|-------|
+| **SageLite-s** | **45.4%** | **66.8%** | **74.1%** | 78.0% | 83.9% | 205 |
+| **CodeRankEmbed** | 42.0% | 66.8% | 74.6% | **79.5%** | **85.9%** | 205 |
+| **finetuned-Reason-ModernColBERT** | 39.5% | 60.5% | 67.3% | 73.7% | 78.0% | 205 |
+| **Reason-ModernColBERT** | 30.7% | 50.2% | 59.5% | 71.2% | 77.1% | 205 |
+
+#### FUNCTION Level Accuracy@k
+| Model | Acc@1 | Acc@3 | Acc@5 | Acc@10 | Acc@20 | Count |
+|-------|-------|-------|-------|--------|--------|-------|
+| **CodeRankEmbed** | **22.6%** | 42.7% | **52.6%** | **60.2%** | **69.0%** | 274 |
+| **finetuned-Reason-ModernColBERT** | **22.6%** | 39.4% | 48.2% | 57.3% | 64.6% | 274 |
+| **SageLite-s** | 22.3% | **43.8%** | 49.6% | 58.8% | 67.9% | 274 |
+| **Reason-ModernColBERT** | 19.7% | 33.2% | 40.1% | 51.1% | 59.9% | 274 |
+
+### Legacy Performance Comparison (NDCG/Recall Metrics)
 
 | Model | Parameters | Embedding Dim | NDCG@1 | NDCG@5 | Recall@5 | Recall@10 | Avg Time (s) |
 |-------|------------|---------------|---------|---------|----------|-----------|--------------|
@@ -180,17 +206,44 @@ We have evaluated several embedding models on the SWE-Bench-Lite dataset for sof
 ### Technical Details
 
 - **Dataset**: SWE-Bench-Lite (274 instances for full evaluation, 10 instances for Reason-ModernColBERT)
-- **Task**: Function-level code retrieval for software issue localization
-- **Evaluation Metrics**: NDCG (Normalized Discounted Cumulative Gain), Recall@K
+- **Task**: Multi-level code retrieval for software issue localization (file, module, function)
+- **Evaluation Metrics**: Accuracy@K, NDCG (Normalized Discounted Cumulative Gain), Recall@K
 - **Hardware**: Evaluation performed on standard GPU infrastructure
 
 ### Key Insights
 
-1. **Reason-ModernColBERT** achieves the highest precision with 30.0% NDCG@1 and excellent Recall@10 (76.7%), demonstrating superior top-1 accuracy and strong overall retrieval performance
-2. **SageLite-s** offers the best balance of mid-range performance (Recall@5: 52.1%) with efficient inference and compact model size (80M parameters)
-3. **CodeRankEmbed** provides solid overall performance but with significantly slower inference (105s vs 2.3s for Reason-ModernColBERT)
-4. ColBERT architecture (Reason-ModernColBERT) shows particular strength in precise top-1 retrieval, making it ideal for scenarios where the first result accuracy is critical
-5. All models demonstrate practical utility focusing on top-5 to top-10 recommendations, with diminishing returns beyond top-10 results
+1. **File-level localization**: SageLite-s leads with 54.4% Acc@1, showing strong performance for coarse-grained issue localization
+2. **Module-level localization**: SageLite-s maintains leadership at Acc@1 (45.4%), while CodeRankEmbed excels at higher k values
+3. **Function-level localization**: CodeRankEmbed and finetuned-Reason-ModernColBERT tie for best Acc@1 (22.6%), demonstrating the challenge of fine-grained localization
+4. **Performance hierarchy**: File > Module > Function accuracy, reflecting increasing difficulty with finer granularity
+5. **Model specialization**: Different models excel at different granularities, suggesting complementary strengths for multi-stage retrieval pipelines
+
+### Model Specifications
+
+#### Reason-ModernColBERT
+- 150M parameter ColBERT model based on ModernBERT architecture
+- 128-dimensional embeddings with token-level interactions
+- Trained on ReasonIR dataset for reasoning-focused retrieval
+- Uses MaxSim scoring for fine-grained query-document matching
+- Requires query prefix: "[Q] " and document prefix: "[D] "
+- Supports up to 8192 tokens for documents, 128 for queries
+- Optimized for precise top-1 retrieval in software issue localization
+
+#### CodeRankEmbed
+- 137M parameter bi-encoder model
+- 768-dimensional embeddings
+- Based on Arctic-Embed-M-Long architecture
+- Supports 8192 context length
+- Specialized for code ranking tasks
+- Requires query prefix: "Represent this query for searching relevant code"
+- Optimized for software issue localization
+
+#### SageLite-s
+- 80M parameter encoder model
+- 768-dimensional embeddings
+- Supports 15 programming languages
+- No special query prefix requirements
+- Efficient alternative for resource-constrained environments
 
 ### Model Specifications
 

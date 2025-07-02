@@ -8,6 +8,7 @@ import torch
 import numpy as np
 from transformers import AutoTokenizer, AutoModel
 from beir.datasets.data_loader import GenericDataLoader
+from pylate import models
 
 #### Just some code to print debug information to stdout
 logging.basicConfig(format='%(asctime)s - %(message)s',
@@ -20,48 +21,25 @@ class ReasonColBERTModel:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logging.info(f"Using device: {self.device}")
         
-        # Load tokenizer and model
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-        self.model = AutoModel.from_pretrained(model_name, trust_remote_code=True)
-        self.model.to(self.device)
-        self.model.eval()
-        
-        # Model configuration
-        self.query_prefix = "[Q] "
-        self.document_prefix = "[D] "
-        self.query_length = 128
-        self.document_length = 8192
+        # Use PyLate ColBERT model for efficient batch encoding
+        self.model = models.ColBERT(
+            model_name_or_path=model_name,
+            device=self.device
+        )
         
         logging.info(f"Model loaded: {model_name}")
     
-    def encode_single_text(self, text, is_query=True):
-        """Encode a single text (query or document)"""
-        if is_query:
-            prefixed_text = self.query_prefix + text
-            max_length = self.query_length
-        else:
-            prefixed_text = self.document_prefix + text
-            max_length = self.document_length
-        
-        # Tokenize
-        inputs = self.tokenizer(
-            prefixed_text,
-            padding=False,
-            truncation=True,
-            max_length=max_length,
-            return_tensors="pt"
-        ).to(self.device)
-        
-        with torch.no_grad():
-            outputs = self.model(**inputs)
-            # Use last hidden state
-            embeddings = outputs.last_hidden_state.squeeze(0)  # Remove batch dimension
-            
-            # Mask out padding tokens (though there shouldn't be any for single text)
-            attention_mask = inputs['attention_mask'].squeeze(0)
-            embeddings = embeddings * attention_mask.unsqueeze(-1)
-            
-            return embeddings.cpu()
+    def encode_batch(self, texts, is_query=True, batch_size=8):
+        """Encode a batch of texts (queries or documents) efficiently"""
+        embeddings = self.model.encode(
+            texts,
+            batch_size=batch_size,
+            is_query=is_query,
+            show_progress_bar=True,
+            convert_to_numpy=False,  # Keep as tensors for compatibility
+            normalize_embeddings=True
+        )
+        return embeddings
     
     def maxsim_score(self, query_embeddings, doc_embeddings):
         """Calculate MaxSim score between query and document embeddings"""
@@ -107,21 +85,21 @@ def evaluate_single_instance(model, instance_path):
             queries_list.append(query_text)
             queries_ids.append(query_id)
         
-        # Encode documents one by one
+        # Encode documents in batches
         logging.info(f"Encoding {len(documents_list)} documents...")
-        doc_embeddings = []
-        for i, doc in enumerate(documents_list):
-            if i % 1000 == 0:
-                logging.info(f"Encoded {i}/{len(documents_list)} documents")
-            doc_emb = model.encode_single_text(doc, is_query=False)
-            doc_embeddings.append(doc_emb)
+        doc_embeddings = model.encode_batch(
+            documents_list,
+            is_query=False,
+            batch_size=4
+        )
         
-        # Encode queries one by one
+        # Encode queries in batches
         logging.info(f"Encoding {len(queries_list)} queries...")
-        query_embeddings = []
-        for query in queries_list:
-            query_emb = model.encode_single_text(query, is_query=True)
-            query_embeddings.append(query_emb)
+        query_embeddings = model.encode_batch(
+            queries_list,
+            is_query=True,
+            batch_size=4
+        )
         
         # Calculate scores for each query-document pair
         start_time = time.time()
@@ -222,7 +200,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_pattern', type=str, default='swe-bench-lite-function_*')
     parser.add_argument("--model", type=str, default="lightonai/Reason-ModernColBERT", help="Model to use")
-    parser.add_argument("--max_instances", type=int, default=None, help="Maximum number of instances to evaluate (for testing)")
+    parser.add_argument("--max_instances", type=int, default=300, help="Maximum number of instances to evaluate")
     parser.add_argument("--output_file", type=str, default="reason_colbert_results.json", help="Name of the output file to save results")
     
     args = parser.parse_args()
@@ -280,11 +258,70 @@ def main():
         logging.info(f"Recall@10: {avg_results['Recall@10']:.4f}")
         logging.info(f"Average time per query: {avg_results['time']:.2f}s")
         
-        # Save results
+        # Save results in the same format as eval_beir_sbert_canonical.py
+        from datasets import load_dataset
+        
+        # Load the original dataset
+        dataset = load_dataset("princeton-nlp/SWE-bench_Lite")["test"]
+        
+        # Create a mapping from instance_id to retrieved docs
+        instance_to_docs = {}
+        
+        # Debug: print what's in all_detailed_results
+        logging.info(f"Debug: all_detailed_results keys: {list(all_detailed_results.keys())}")
+        
+        for dataset_dir in dataset_dirs:
+            # Extract instance_id from directory name: "swe-bench-lite-function_astropy__astropy-12907" -> "astropy__astropy-12907"
+            instance_name = os.path.basename(dataset_dir)
+            parts = instance_name.split('-function_')
+            if len(parts) == 2:
+                instance_id = parts[1]
+            else:
+                # Fallback: try to extract from the end
+                instance_id = instance_name.split('_', 2)[-1]
+            
+            logging.info(f"Debug: Processing dataset_dir={dataset_dir}, instance_name={instance_name}, instance_id={instance_id}")
+            
+            # The all_detailed_results is keyed by the instance_name (basename of dataset_dir)
+            # and contains {query_id: {doc_id: score}}
+            if instance_name in all_detailed_results:
+                query_results = all_detailed_results[instance_name]
+                logging.info(f"Debug: Found results for {instance_name}, query_results keys: {list(query_results.keys())}")
+                
+                # For each query in this instance (usually just one)
+                retrieved_docs = []
+                for query_id, doc_scores in query_results.items():
+                    logging.info(f"Debug: Processing query_id={query_id}, num_docs={len(doc_scores)}")
+                    # Sort documents by score (descending)
+                    sorted_docs = sorted(doc_scores.items(), key=lambda x: x[1], reverse=True)
+                    retrieved_docs = [doc_id for doc_id, score in sorted_docs]
+                    logging.info(f"Debug: Top 3 docs: {retrieved_docs[:3]}")
+                    break  # Usually only one query per instance
+                
+                instance_to_docs[instance_id] = retrieved_docs
+            else:
+                logging.info(f"Debug: No results found for {instance_name}")
+                instance_to_docs[instance_id] = []
+        
+        # Create docs column for all instances in the dataset
+        all_top_docs = []
+        for instance in dataset:
+            instance_id = instance["instance_id"]
+            if instance_id in instance_to_docs:
+                all_top_docs.append(instance_to_docs[instance_id])
+            else:
+                all_top_docs.append([])  # Empty list for instances not evaluated
+        
+        # Add docs column to dataset and save
+        dataset = dataset.add_column("docs", all_top_docs)
+        
         output_dir = "./results/"
         os.makedirs(output_dir, exist_ok=True)
-        
         model_name = args.model.split("/")[-1] if "/" in args.model else args.model
+        
+        # Save in the same format as eval_beir_sbert_canonical.py
+        results_file = f"{output_dir}/model={model_name}_dataset=swe-bench-lite_split=test_level=function_evalmode=fixed_results.json"
+        dataset.to_json(results_file)
         
         # Save summary results
         summary_results = {
@@ -292,21 +329,15 @@ def main():
             "total_instances": len(dataset_dirs),
             "successful_instances": len(all_results),
             "failed_instances": len(failed_instances),
-            "average_results": avg_results,
-            "individual_results": all_results
+            "average_results": avg_results
         }
         
         output_file = f"{output_dir}/model={model_name}_dataset=swe-bench-lite_split=test_level=function_evalmode=fixed_output.json"
         with open(output_file, 'w') as f:
             json.dump(summary_results, f, indent=2)
         
-        # Save detailed results
-        detailed_output_file = f"{output_dir}/model={model_name}_dataset=swe-bench-lite_split=test_level=function_evalmode=fixed_results.json"
-        with open(detailed_output_file, 'w') as f:
-            json.dump(all_detailed_results, f, indent=2)
-        
-        logging.info(f"Results saved to {output_file}")
-        logging.info(f"Detailed results saved to {detailed_output_file}")
+        logging.info(f"Results saved to {results_file}")
+        logging.info(f"Summary saved to {output_file}")
         
         if failed_instances:
             logging.warning(f"Failed to process {len(failed_instances)} instances: {failed_instances}")

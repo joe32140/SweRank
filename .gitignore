@@ -15,6 +15,7 @@ rank_*_processed.json
 ckpts
 wandb
 **metadata/
+src/colbert/finetuned_colbert_full
 scripts/text/embedding_training_data/dotted/*
 scripts/video/preproc/
 *.csv
